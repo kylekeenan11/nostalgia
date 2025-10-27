@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+
+{% block main %}
+
+<h1>Search Results</h1>
+
+{% if year and query %}
+    <p>Showing results for "{{ query }}" from {{ year }}</p>
+{% elif query %}
+    <p>Showing results for "{{ query }}"</p>
+{% elif year %}
+    <p>Top songs from {{ year }}</p>
+{% endif %}
+
+<p>Found {{ tracks|length }} tracks</p>
+
+
+<div class="container my-5">
+    {% if year %}
+    <h1 class="text-center mb-4">Top Songs from {{ year }}</h1>
+    {% else %}
+    <h1>Search Results</h1>
+    {% endif %}
+
+    
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-4">
+
+        {% for track in tracks %}
+        <div class="col">
+            <div class="card h-100 text-center shadow-sm">
+                <img src="{{ track.album_art }}" class="card-img-top" alt="{{ track.album }}">
+                <div class="card-body">
+                    <h5 class="card-title mb-1">{{ track.title }}</h5>
+                    <p class="card-text text-muted">{{ track.artist }}</p>
+                    <p class="text-secondary small">Popularity: {{ track.popularity_score }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+</div>
+
+<a href="/">Back to Search</a>
+
+{% endblock %}
