@@ -16,8 +16,8 @@
 
         
         <div class="col-md-2 col-sm-6">
-            <select name="year" id="year" class="form-select form-select-lg" aria-label="Select year">
-                <option Value="">All Years</option>
+            <select name="year" id="year" class="form-select form-select-lg" aria-label="Select year" required>
+                <option Value="">Select year</option>
                 {% for x in range(2025, 1959, -1) %}
                 <option value="{{ x }}">{{ x }}</option>
                 {% endfor %}
@@ -33,26 +33,10 @@
 </div>
 
 <div class="container my-5">
-    <h1 class="text-center mb-4">Top Songs from {{ year }}</h1>
-    <h1>Search Results</h1>
+    <h1 class="text-center mb-4">Home</h1>
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-4">
+<img class="img-fluid" src="\static\soundwave.jpg" alt="image not found">
 
-        {% for track in tracks80s %}
-        <div class="col">
-            <div class="card h-100 text-center shadow-sm">
-                <img src="{{ track.album_art }}" class="card-img-top" alt="{{ track.album }}">
-                <div class="card-body">
-                    <h5 class="card-title mb-1">{{ track.title }}</h5>
-                    <p class="card-text text-muted">{{ track.artist }}</p>
-                    <p class="text-secondary small">Popularity: {{ track.popularity_score }}</p>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-
-    </div>
-</div>
 
 {% endblock %}
 

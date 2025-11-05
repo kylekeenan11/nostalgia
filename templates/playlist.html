@@ -2,18 +2,32 @@
 
 {% block main %}
 
-<h1>Search Results</h1>
+<div class="container my-4">
+    <form action="/search" method="post" class="row g-3 justify-content-center align-items-center">
 
-{% if year and query %}
-    <p>Showing results for "{{ query }}" from {{ year }}</p>
-{% elif query %}
-    <p>Showing results for "{{ query }}"</p>
-{% elif year %}
-    <p>Top songs from {{ year }}</p>
-{% endif %}
 
-<p>Found {{ tracks|length }} tracks</p>
+        <div class="col-md-4 col-sm-12">
+            <input type="text" class="form-control form-control-lg" placeholder="Enter song or artist name"
+                aria-label="Search song" name="song" id="song">
+        </div>
 
+
+        <div class="col-md-2 col-sm-6">
+            <select name="year" id="year" class="form-select form-select-lg" aria-label="Select year">
+                <option Value="">All Years</option>
+                {% for x in range(2025, 1959, -1) %}
+                <option value="{{ x }}">{{ x }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+
+        <div class="col-md-auto col-sm-12">
+            <button type="submit" class="btn btn-primary btn-lg w-100">Search</button>
+        </div>
+
+    </form>
+</div>
 
 <div class="container my-5">
     {% if year %}
@@ -33,6 +47,7 @@
                     <h5 class="card-title mb-1">{{ track.title }}</h5>
                     <p class="card-text text-muted">{{ track.artist }}</p>
                     <p class="text-secondary small">Popularity: {{ track.popularity_score }}</p>
+                    <button class="btn btn-md btn-primary" type="submit">Add to playlist</button>
                 </div>
             </div>
         </div>

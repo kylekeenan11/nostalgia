@@ -1,6 +1,44 @@
 import requests
 import base64
 import os
+import sqlite3
+from flask import g, redirect, render_template, session
+from functools import wraps
+
+DATABASE = "nostalgia.db"
+
+def get_db():
+    """Open a new database connection if one doesn't exist for the current request"""
+    if "db" not in g:
+        g.db = sqlite3.connect(DATABASE)
+        g.db.row_factory = sqlite3.Row  # allows accessing columns by name
+    return g.db
+
+
+def login_required(f):
+    """
+    Decorate routes to require login.
+
+    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
+    """
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("user_id") is None:
+            return redirect("/login")
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+
+def close_db(exception=None):
+    """Close the database connection at the end of a request"""
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
 
 def get_spotify_token():
     """Get access token"""
@@ -160,7 +198,7 @@ def random_songs(query, year, limit=20):
     tracks.sort(key=lambda x: x["popularity_score"], reverse=True)
     return tracks
 
-def get_random_songs_by_decade(start_year, end_year, limit=20):
+def get_random_songs_by_decade(start_year, end_year, limit=50):
     """get random songs by range"""
     token = get_spotify_token()
     search_query = f"year:{start_year}-{end_year}"
