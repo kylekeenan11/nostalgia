@@ -1,0 +1,56 @@
+{% extends "layout.html" %}
+
+{% block main %}
+
+<div class="container my-5">
+    <h1 class="text-center mb-4">My Playlists</h1>
+
+    <div id="playlistsContainer">
+        <!-- Will be populated by JavaScript -->
+        <p class="text-center text-muted">Loading...</p>
+    </div>
+</div>
+
+<script>
+    async function loadPlaylists() {
+        const response = await fetch('/api/playlists');
+        const playlists = await response.json();
+
+        const container = document.getElementById('playlistsContainer');
+
+        if (playlists.length === 0) {
+            container.innerHTML = '<p class="text-center text-muted">No playlists yet. Search for songs and start creating!</p>';
+            return;
+        }
+
+        container.innerHTML = playlists.map(playlist => `
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">${playlist.name}</h5>
+                <p class="card-text text-muted">${playlist.track_count} songs</p>
+                <a href="/playlist/${playlist.id}" class="btn btn-primary">View Playlist</a>
+                <button class="btn btn-danger" onclick="deletePlaylist(${playlist.id})">Delete</button>
+            </div>
+        </div>
+    `).join('');
+    }
+
+    
+    async function deletePlaylist(id) {
+        if (!confirm("Are you sure you want to delete this playlist?")) return;
+
+        const response = await fetch(`/api/playlists/${id}`, {
+            method: "DELETE"
+        });
+
+        if (response.ok) {
+            loadPlaylists(); // refresh list
+        } else {
+            alert("Failed to delete playlist.");
+        }
+    }
+
+    loadPlaylists();
+</script>
+
+{% endblock %}

@@ -47,15 +47,166 @@
                     <h5 class="card-title mb-1">{{ track.title }}</h5>
                     <p class="card-text text-muted">{{ track.artist }}</p>
                     <p class="text-secondary small">Popularity: {{ track.popularity_score }}</p>
-                    <button class="btn btn-md btn-primary" type="submit">Add to playlist</button>
+                    <button class="btn btn-md btn-primary flex-grow-1" data-track='{{ track | tojson | safe }}'
+                        onclick="openPlaylistModal(this)">
+                        Add to Playlist
+                    </button>
                 </div>
             </div>
         </div>
+
         {% endfor %}
+
+        <div class="modal fade" id="playlistModal" tabindex="-1" aria-labelledby="playlistModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="playlistModalLabel">Add to Playlist</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+        
+                        <p class="text-muted">Adding: <strong id="selectedTrackTitle"></strong> by <strong
+                                id="selectedTrackArtist"></strong></p>
+        
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6>Create New Playlist</h6>
+                                <form id="createPlaylistForm" onsubmit="createAndAddToPlaylist(event)">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="newPlaylistName" placeholder="Playlist name"
+                                            required>
+                                        <button class="btn btn-success" type="submit">Create & Add</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+        
+                        <h6>Or add to existing playlist:</h6>
+                        <div id="playlistsList">
+                            <p class="text-muted">Loading playlists...</p>
+                        </div>
+        
+                    </div>
+                </div>
+            </div>
+        </div>      
 
     </div>
 </div>
 
 <a href="/">Back to Search</a>
+
+<script>
+let selectedTrack = null;
+
+// open modal to populate with track info
+    function openPlaylistModal(button) {
+        // Get track data from the data attribute
+        const trackData = button.getAttribute('data-track');
+        selectedTrack = JSON.parse(trackData);
+
+        // Update modal with track info
+        document.getElementById('selectedTrackTitle').textContent = selectedTrack.title;
+        document.getElementById('selectedTrackArtist').textContent = selectedTrack.artist;
+
+        // Load user's playlists
+        loadUserPlaylists();
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('playlistModal'));
+        modal.show();
+    }
+
+async function loadUserPlaylists() {
+    try {
+        const response = await fetch('/api/playlists');
+        const playlists = await response.json();
+
+        const playlistsList = document.getElementById('playlistsList');
+
+        if (playlists.length === 0) {
+            playlistsList.innerHTML = '<p class="text-muted">No Playlists yet</p>';
+            return;
+        }
+
+        // clickable buttons for playlists
+        playlistsList.innerHTML = playlists.map(playlist => `
+            <button class="btn btn-outline-primary w-100 mb-2" 
+                    onclick="addToExistingPlaylist(${playlist.id})">
+                ${playlist.name} (${playlist.track_count} songs)
+            </button>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error loading playlists:', error);
+        document.getElementById('playlistsList').innerHTML =
+            '<p class="text-danger">Error loading playlists</p>';
+    }
+}
+
+// Create new playlist and add track
+async function createAndAddToPlaylist(event) {
+    event.preventDefault();
+
+    const playlistName = document.getElementById('newPlaylistName').value;
+
+    try {
+        const response = await fetch('/api/playlists/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: playlistName,
+                track: selectedTrack
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert(`Created playlist "${playlistName}" and added track!`);
+            bootstrap.Modal.getInstance(document.getElementById('playlistModal')).hide();
+            document.getElementById('newPlaylistName').value = '';
+        } else {
+            alert('Error: ' + result.error);
+        }
+
+    } catch (error) {
+        console.error('Error creating playlist:', error);
+        alert('Error creating playlist');
+    }
+}
+
+// Add track to existing playlist
+async function addToExistingPlaylist(playlistId) {
+    try {
+        const response = await fetch('/api/playlists/add-track', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                playlist_id: playlistId,
+                track: selectedTrack
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert('Track added to playlist!');
+            bootstrap.Modal.getInstance(document.getElementById('playlistModal')).hide();
+        } else {
+            alert('Error: ' + result.error);
+        }
+
+    } catch (error) {
+        console.error('Error adding track:', error);
+        alert('Error adding track to playlist');
+    }
+}
+</script>
 
 {% endblock %}

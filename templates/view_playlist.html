@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+
+{% block main %}
+
+<div class="container my-5">
+    <h1 class="text-center mb-4">{{ playlist.name }}</h1>
+    <p class="text-center text-muted">{{ tracks|length }} songs</p>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-4">
+        {% for track in tracks %}
+        <div class="col">
+            <div class="card h-100 text-center shadow-sm">
+                <img src="{{ track.album_art }}" class="card-img-top" alt="{{ track.title }}">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title mb-1">{{ track.title }}</h5>
+                    <p class="card-text text-muted mb-2">{{ track.artist }}</p>
+
+                    <button class="btn btn-danger btn-sm mt-auto" data-track-id="{{ track.id }}" data-playlist-id="{{ playlist.id }}"
+                        onclick="removeTrack(this)">
+                        Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="text-center mt-4">
+        <a href="/saved" class="btn btn-secondary">Back to Playlists</a>
+    </div>
+</div>
+
+<script>
+    async function removeTrack(button) {
+            const trackId = button.getAttribute('data-track-id');
+            const playlistId = button.getAttribute('data-playlist-id');
+
+            if (!confirm('Remove this song from the playlist?')) return;
+
+            const response = await fetch('/api/playlists/remove-track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    track_id: trackId,
+                    playlist_id: playlistId
+                })
+            });
+
+            if (response.ok) {
+                location.reload(); // Refresh page to show changes
+            } else {
+                alert('Error removing track');
+            }
+        }
+</script>
+
+{% endblock %}

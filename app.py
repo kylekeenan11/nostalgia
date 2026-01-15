@@ -1,9 +1,11 @@
-from flask import Flask, flash, redirect, render_template, request, session, g
+from flask import Flask, flash, redirect, render_template, request, session, g, jsonify 
+import json
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_session import Session
 import os
 import sqlite3
+
 
 from helpers import search_songs_with_year, search_songs, search_songs_by_year, get_random_songs_by_decade, get_db, close_db, login_required
 
@@ -131,6 +133,201 @@ def search():
     
     return render_template("playlist.html", tracks=tracks, year=year, query=song_query)
 
+@app.route("/api/playlists")
+def get_playlists():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    db = get_db()
+    playlists = db.execute(
+        """SELECT p.id, p.name, p.year, COUNT(pt.id) as track_count
+           FROM playlists p
+           LEFT JOIN playlist_tracks pt ON p.id = pt.playlist_id
+           WHERE p.user_id = ?
+           GROUP BY p.id
+           ORDER BY p.created_at DESC""",
+        (session["user_id"],)
+    ).fetchall()
+    db.close()
+
+    return jsonify([dict(playlist) for playlist in playlists])
+
+@app.route("/api/playlists/create", methods=["POST"])
+def create_playlist():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    data = request.json
+    playlist_name = data.get("name")
+    track = data.get("track")
+
+    if not playlist_name or not track:
+        return jsonify({"error": "Missing data"}), 400
+    
+    db = get_db()
+
+    # create playlist
+    cursor = db.execute(
+        "INSERT INTO playlists (user_id, name, year) VALUES (?, ?, ?)",
+        (session["user_id"], playlist_name, track.get("release_date", "")[:4])
+    )
+    playlist_id = cursor.lastrowid
+
+    # add track to playlist
+    db.execute(
+        """INSERT INTO playlist_tracks 
+           (playlist_id, spotify_id, title, artist, preview_url, album_art, spotify_url, position)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1)""",
+        (playlist_id, track["spotify_id"], track["title"], track["artist"],
+         track["preview_url"], track["album_art"], track["spotify_url"])
+    )
+    
+    db.commit()
+    db.close()
+
+    return jsonify({"success": True, "playlist_id": playlist_id})
+
+@app.route("/api/playlists/<int:playlist_id>", methods=["DELETE"])
+def delete_playlist(playlist_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    db = get_db()
+
+    playlist = db.execute(
+        "SELECT id FROM playlists WHERE id = ? AND user_id = ?",
+        (playlist_id, session["user_id"])
+    ).fetchone()
+
+    if not playlist:
+        return jsonify({"error": "Playlist not found"}), 404
+
+    db.execute("DELETE FROM playlist_tracks WHERE playlist_id = ?", (playlist_id,))
+
+    db.execute("DELETE FROM playlists WHERE id = ?", (playlist_id,))
+
+    db.commit()
+    db.close()
+
+    return jsonify({"success": True, "message": "Playlist deleted"})
+
+@app.route("/api/playlists/add-track", methods=["POST"])
+def add_track_to_playlist():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    data = request.json
+    playlist_id = data.get("playlist_id")
+    track = data.get("track")
+
+    if not playlist_id or not track:
+        return jsonify({"error": "Missing data"}), 400
+    
+    db = get_db()
+
+    # check if user has the playlist
+    playlist = db.execute(
+        "SELECT * FROM playlists WHERE id = ? AND user_id = ?",
+        (playlist_id, session["user_id"])
+    ).fetchone()
+
+    if not playlist:
+        db.close()
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    #check if song is already in the playlist
+    existing = db.execute(
+        "SELECT * FROM playlist_tracks WHERE playlist_id = ? AND spotify_id = ?",
+        (playlist_id, track["spotify_id"])
+    ).fetchone()
+
+    if existing:
+        db.close()
+        return jsonify({"error": "Track already in playlist"}), 400
+    
+    #get max position in list
+    max_pos = db.execute(
+        "SELECT MAX(position) as max FROM playlist_tracks WHERE playlist_id = ?",
+        (playlist_id,)
+    ).fetchone()["max"]
+    
+    position = (max_pos or 0) + 1
+
+    #Add a song
+    db.execute(
+        """INSERT INTO playlist_tracks 
+           (playlist_id, spotify_id, title, artist, preview_url, album_art, spotify_url, position)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (playlist_id, track["spotify_id"], track["title"], track["artist"],
+         track["preview_url"], track["album_art"], track["spotify_url"], position)
+    )
+    
+    db.commit()
+    db.close()
+
+    return jsonify({"success": True})
+
+@app.route("/saved")
+def saved():
+    if "user_id" not in session:
+        return redirect("/login")
+    return render_template("saved.html")
+
+@app.route("/playlist/<int:playlist_id>")
+def view_playlist(playlist_id):
+    if "user_id" not in session:
+        return redirect("/login")
+    
+    db = get_db()
+    
+    # Get playlist info
+    playlist = db.execute(
+        "SELECT * FROM playlists WHERE id = ? AND user_id = ?",
+        (playlist_id, session["user_id"])
+    ).fetchone()
+    
+    if not playlist:
+        db.close()
+        return "Playlist not found", 404
+    
+    # Get tracks
+    tracks = db.execute(
+        """SELECT * FROM playlist_tracks 
+           WHERE playlist_id = ? 
+           ORDER BY position""",
+        (playlist_id,)
+    ).fetchall()
+    
+    db.close()
+    
+    return render_template("view_playlist.html", playlist=dict(playlist), tracks=[dict(t) for t in tracks])
+
+@app.route("/api/playlists/remove-track", methods=["POST"])
+def remove_track():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    track_id = request.json.get("track_id")
+    
+    db = get_db()
+    
+    # Verify ownership
+    track = db.execute(
+        """SELECT pt.* FROM playlist_tracks pt
+           JOIN playlists p ON pt.playlist_id = p.id
+           WHERE pt.id = ? AND p.user_id = ?""",
+        (track_id, session["user_id"])
+    ).fetchone()
+    
+    if not track:
+        db.close()
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    db.execute("DELETE FROM playlist_tracks WHERE id = ?", (track_id,))
+    db.commit()
+    db.close()
+    
+    return jsonify({"success": True})
 
 
 if __name__ == '__main__':
